@@ -33,4 +33,5 @@ kubectl apply -f nginx-service.yaml
 kubectl apply -f nginx-VS.yaml
 kubectl get service --namespace=nginx-ingress
 kubectl get svc nginx-ingress --namespace=nginx-ingress | tr -s " " | cut -d' ' -f4 | grep -v "EXTERNAL-IP"
+kubectl get svc nginx-ingress --namespace=nginx-ingress | tr -s " " | cut -d' ' -f4 | grep -v "EXTERNAL-IP" > AWS_LB
 #export TF_VAR_AWS_LB=`kubectl get svc nginx-ingress --namespace=nginx-ingress | tr -s " " | cut -d' ' -f4 | grep -v "EXTERNAL-IP"`

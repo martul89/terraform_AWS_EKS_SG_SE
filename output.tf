@@ -1,4 +1,4 @@
-output "kubeconfig" {
+output "AWS-kubeconfig" {
   value = <<KUBECONFIG
 apiVersion: v1
 kind: ConfigMap
@@ -42,24 +42,6 @@ users:
 KUBECONFIG
 }
 
-/*
-output "ec2_ip" {
-   value = "${aws_instance.nginx_public.public_ip}"
- }
-
- output "To_SSH_into_the_ubuntu" {
-  value =  "ssh -i ${aws_key_pair.demo.key_name}.pem ubuntu@${aws_instance.nginx_public.public_ip}"
- } */
-
-/*
- resource "null_resource" "eks_kubeconfig" {
-    provisioner "local-exec" {
-    command = <<EOT
-    "sudo scripts/.runtest.sh"
-    EOT
-  depends_on = [module.bigip]
-  } */
- 
 
  output "F5_IP" {
   value = module.bigip.0.mgmtPublicIP
@@ -81,24 +63,41 @@ output "F5_UI" {
   value = "https://${module.bigip.0.mgmtPublicIP}:8443"
 }
 
+output "NGINX_WAF_IP" {
+  value = "${aws_instance.nginx_WAF.public_ip}"
+}
 
+output "NGINX_WAF_IP_ssh" {
+  value = "ssh -i ${aws_key_pair.demo.key_name}.pem ubuntu@${aws_instance.nginx_WAF.public_ip}"
+}
 
+output "Jumphost_ubuntu" {
+  value = "${aws_instance.nginx_public.public_ip}"
+}
+
+output "Jumphost_ubuntu_ssh" {
+  value = "ssh -i ${aws_key_pair.demo.key_name}.pem ubuntu@${aws_instance.nginx_public.public_ip}"
+}
+
+output "NLB_Endpoint" {
+  value = data.template_file.userdata-nginx-v1.vars.AWS_LB
+}
+
+output "TMSH-Config-for-F5" {
+  value = <<RUN_AT_F5
+SSH to F5 and run command:
+tmsh install /sys crypto cert arcadiacert from-local-file /config/ssl/ssl.crt/arcadia.crt
+tmsh install /sys crypto key arcadiakey from-local-file /config/ssl/ssl.key/arcadia.key
+tmsh create /ltm profile client-ssl arcadia_ssl cert arcadiacert key arcadiakey
+tmsh save sys config
+RUN_AT_F5
+}
 
 /*
+
   provisioner "local-exec" {
     when    = destroy
     command = "rm -f /home/martul/.kube/config"
   }
-} 
-
-
- command = <<EOT
-    "mkdir /home/martul/.kube/"
-    "terraform output -raw kubeconfig > /home/martul/.kube/config"
-    "aws configure set aws_access_key_id ${var.access_key}"
-    "aws configure set aws_secret_access_key ${var.secret_key}"
-    "aws configure set region ${var.region}"
-    EOT 
-    
-    */
+} */
 

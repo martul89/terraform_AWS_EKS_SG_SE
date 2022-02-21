@@ -1,148 +1,10 @@
-#!/bin/bash
+#!/bin/sh
 
-# Send output to log file and serial console
-mkdir -p  /var/log/cloud /config/cloud /var/config/rest/downloads
-LOG_FILE=/var/log/cloud/startup-script.log
-[[ ! -f $LOG_FILE ]] && touch $LOG_FILE || { echo "Run Only Once. Exiting"; exit; }
-npipe=/tmp/$$.tmp
-trap "rm -f $npipe" EXIT
-mknod $npipe p
-tee <$npipe -a $LOG_FILE /dev/ttyS0 &
-exec 1>&-
-exec 1>$npipe
-exec 2>&1
 
-# # create user
-# tmsh create auth user ${bigip_username} password ${bigip_password} shell tmsh partition-access replace-all-with { all-partitions { role admin } }
+sudo su - 
 
-# save config
-tmsh save sys config
-ssh_keypair2=$(cat /home/admin/.ssh/authorized_keys)
-
-mkdir -p /config/cloud
-
-cat << 'EOF' > /config/cloud/runtime-init-conf.yaml
----
-runtime_parameters:
-  - name: USER_NAME
-    type: static
-    value: ${bigip_username}
-  - name: SSH_KEYS
-    type: static
-EOF
-echo "    value: $ssh_keypair2" >> /config/cloud/runtime-init-conf.yaml
-
-if ${aws_secretmanager_auth}
-then
-   cat << 'EOF' >> /config/cloud/runtime-init-conf.yaml
-  - name: ADMIN_PASS
-    type: secret
-    secretProvider:
-      environment: aws
-      type: SecretsManager
-      version: AWSCURRENT
-      secretId: ${bigip_password}
-EOF
-else
-   cat << 'EOF' >> /config/cloud/runtime-init-conf.yaml
-  - name: ADMIN_PASS
-    type: static
-    value: ${bigip_password}
-EOF
-fi
-
-#Add DO JSON file
-cat << 'EOF' > /config/cloud/DO.json
-{
-    "schemaVersion": "1.0.0",
-    "class": "Device",
-    "async": true,
-    "label": "my BIG-IP declaration for declarative onboarding",
-    "Common": {
-        "class": "Tenant",
-        "hostname": "bigip1.example.com",
-        "myDns": {
-            "class": "DNS",
-            "nameServers": [
-                "8.8.8.8",
-                "2001:4860:4860::8844"
-            ],
-            "search": [
-                "f5.com"
-            ]
-        },
-        "myNtp": {
-            "class": "NTP",
-            "servers": [
-                "0.pool.ntp.org"
-            ],
-            "timezone": "UTC"
-        },
-        "myProvisioning": {
-            "class": "Provision",
-            "ltm": "nominal",
-            "asm": "nominal",
-            "avr": "nominal"
-        },
-        "admin": {
-            "class": "User",
-            "userType": "regular",
-            "password": "{{{ ADMIN_PASS }}}",
-            "shell": "bash",
-            "keys": ["{{{ SSH_KEYS }}}"]
-        },
-        "{{{ USER_NAME }}}": {
-            "class": "User",
-            "userType": "regular",
-            "password": "{{{ ADMIN_PASS }}}",
-            "shell": "bash",
-            "keys": ["{{{ SSH_KEYS }}}"],
-            "partitionAccess": {
-                "all-partitions": {
-                    "role": "admin"
-                }
-            }
-        }
-    }
-}
-EOF
-echo "DO file has been created"
-
-# Add remaining runtime_parameters:
-cat << 'EOF' >> /config/cloud/runtime-init-conf.yaml
-pre_onboard_enabled:
-  - name: provision_rest
-    type: inline
-    commands:
-      - /usr/bin/setdb provision.extramb 500
-      - /usr/bin/setdb restjavad.useextramb true
-extension_packages:
-  install_operations:
-    - extensionType: do
-      extensionVersion: ${DO_VER}
-      extensionUrl: ${DO_URL}
-    - extensionType: as3
-      extensionVersion: ${AS3_VER}
-      extensionUrl: ${AS3_URL}
-    - extensionType: ts
-      extensionVersion: ${TS_VER}
-      extensionUrl: ${TS_URL}
-    - extensionType: cf
-      extensionVersion: ${CFE_VER}
-      extensionUrl: ${CFE_URL}
-    - extensionType: fast
-      extensionVersion: ${FAST_VER}
-      extensionUrl: ${FAST_URL}
-extension_services:
-  service_operations:
-    - extensionType: do
-      type: url
-      value: file:///config/cloud/DO.json
-post_onboard_enabled: []
-EOF
-
-# Add arcadia.themartul.com cert to F5
-cat << 'EOF' > /config/ssl/ssl.crt/arcadia.crt
+# Add arcadia.themartul.com cert to nginx
+sudo cat << 'EOF' >  /etc/ssl/arcadia.crt
 -----BEGIN CERTIFICATE-----
 MIIFMTCCBBmgAwIBAgISA9lPJ2n1jlzk6o69Zz8Pi70jMA0GCSqGSIb3DQEBCwUA
 MDIxCzAJBgNVBAYTAlVTMRYwFAYDVQQKEw1MZXQncyBFbmNyeXB0MQswCQYDVQQD
@@ -236,7 +98,7 @@ Dfvp7OOGAN6dEOM4+qR9sdjoSYKEBpsr6GtPAQw4dy753ec5
 -----END CERTIFICATE-----
 EOF
 
-cat << 'EOF' > /config/ssl/ssl.key/arcadia.key
+sudo cat << 'EOF' > /etc/ssl/arcadia.key
 -----BEGIN PRIVATE KEY-----
 MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDWfg6bVMXAqnxk
 DWaNPd9otedhEzIeC6jpd5dRH/2SFyJ81Q7StTQLNMxNyMK5jT1qb6p2BlMFVire
@@ -267,21 +129,96 @@ bJkXWHm74GACyfCQ4Hv3jgErjg==
 -----END PRIVATE KEY-----
 EOF
 
-sleep 360
+#configure nginx.conf to include app protect
+sudo cat << 'EOF' > /etc/nginx/nginx.conf
+user  nginx;
+worker_processes  auto;
+load_module modules/ngx_http_app_protect_module.so;
+error_log  /var/log/nginx/error.log notice;
+pid        /var/run/nginx.pid;
 
-tmsh install /sys crypto cert arcadiacert from-local-file /config/ssl/ssl.crt/arcadia.crt
-tmsh install /sys crypto key arcadiakey from-local-file /config/ssl/ssl.key/arcadia.key
-tmsh create /ltm profile client-ssl arcadia_ssl cert arcadiacert key arcadiakey
-tmsh save sys config
 
-# # Download
-#PACKAGE_URL='https://cdn.f5.com/product/cloudsolutions/f5-bigip-runtime-init/v1.1.0/dist/f5-bigip-runtime-init-1.1.0-1.gz.run'
-#PACKAGE_URL='https://cdn.f5.com/product/cloudsolutions/f5-bigip-runtime-init/v1.2.0/dist/f5-bigip-runtime-init-1.2.0-1.gz.run'
-for i in {1..30}; do
-    curl -fv --retry 1 --connect-timeout 5 -L ${INIT_URL} -o "/var/config/rest/downloads/f5-bigip-runtime-init.gz.run" && break || sleep 10
-done
-# Install
-bash /var/config/rest/downloads/f5-bigip-runtime-init.gz.run -- '--cloud aws'
-# Run
-# export F5_BIGIP_RUNTIME_INIT_LOG_LEVEL=silly
-f5-bigip-runtime-init --config-file /config/cloud/runtime-init-conf.yaml
+events {
+    worker_connections  1024;
+}
+
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout  65;
+
+    #gzip  on;
+
+    include /etc/nginx/conf.d/*.conf;
+}
+
+
+# TCP/UDP proxy and load balancing block
+#
+#stream {
+    # Example configuration for TCP load balancing
+
+    #upstream stream_backend {
+    #    zone tcp_servers 64k;
+    #    server backend1.example.com:12345;
+    #    server backend2.example.com:12345;
+    #}
+
+    #server {
+    #    listen 12345;
+    #    status_zone tcp_server;
+    #    proxy_pass stream_backend;
+    #}
+#}
+EOF
+
+#configure conf.d to server arcadia apps
+sudo cat << 'EOF' > /etc/nginx/conf.d/arcadia.conf
+
+app_protect_enable on; # This is how you enable NGINX App Protect WAF in the relevant context/block
+app_protect_policy_file "/etc/app_protect/conf/NginxDefaultPolicy.json"; # This is a reference to the policy file to use. If not defined, the default policy is used
+app_protect_security_log_enable on; # This section enables the logging capability
+app_protect_security_log "/etc/app_protect/conf/log_default.json" syslog:server=127.0.0.1:515; # This is where the remote logger is defined in terms of: logging options (defined in the referenced file), log server IP, log server port
+log_format security_waf 'request_time=$request_time client_ip=$remote_addr,'
+                             'request="$request", status=$status,'
+                             'waf_policy=$app_protect_policy_name, waf_request_id=$app_protect_support_id'
+                             'waf_action=$app_protect_outcome, waf_action_reason=$app_protect_outcome_reason';
+
+upstream AWS_LB {
+    zone dvwa 64k;
+    server ${AWS_LB}:80;
+    keepalive 32;
+}
+
+server {
+    listen              443 ssl; # 'ssl' parameter tells NGINX to decrypt the traffic
+    server_name         arcadia.themartul.com;
+    ssl_certificate     /etc/ssl/arcadia.crt;
+    ssl_certificate_key /etc/ssl/arcadia.key;
+    proxy_set_header Host arcadia.themartul.com;
+
+       location / {
+        proxy_pass http://AWS_LB;
+        proxy_set_header Host arcadia.themartul.com;
+        access_log /var/log/app_protect/waf-access.log security_waf;
+    }
+}
+
+EOF
+
+
+sudo service nginx restart
+sudo nginx -T
+sudo nginx -s reload
+

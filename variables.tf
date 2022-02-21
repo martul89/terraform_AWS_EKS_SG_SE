@@ -1,17 +1,30 @@
 # This file is the variable file which can be customized as per your deployment. 
 
+
+# Provide the access key to your AWS account
+variable "access_key" {
+  description = "access key to AWS account"
+  default     = "AKIAY6B3ZMRVAKWF2PUG"
+}
+
+# Provide the secret key to your AWS account
+variable "secret_key" {
+  description = "secret key to AWS account"
+  default     = "d15uWt0obezDnLJzhjy6Mzct/NRfH+7ZxgBsYWrV"
+}
+
 # Select the region required, make sure the AMI is valid for that region.
 variable "region" {
   description = "Regions supported"
-  default     = "us-west-2"
+  default     = "ap-northeast-1"
 }
 
 variable "aws_az1" {
-  default = "us-west-2a"
+  default = "ap-northeast-1a"
 }
 
 variable "aws_az2" {
-  default = "us-west-2b"
+  default = "ap-northeast-1c"
 }
 
 variable "f5_username" {
@@ -107,17 +120,6 @@ variable "private_subnet_cidr" {
   default     = "10.0.3.0/24"
 }
 
-# Provide the access key to your AWS account
-variable "access_key" {
-  description = "access key to AWS account"
-  default     = "XXXXX"
-}
-
-# Provide the secret key to your AWS account
-variable "secret_key" {
-  description = "secret key to AWS account"
-  default     = "XXXXX"
-}
 
 # Provide the EC2 instance type
 variable "instance_type" {

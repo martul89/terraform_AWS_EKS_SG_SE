@@ -20,7 +20,6 @@ resource "aws_instance" "nginx_public" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.public-subnet.id
-  #user_data              = file("./scripts/nginx.sh")
   vpc_security_group_ids = [aws_security_group.public.id]
   key_name               = aws_key_pair.demo.key_name
   tags = {
@@ -31,12 +30,22 @@ resource "aws_instance" "nginx_public" {
 
 #NGINX_App_Protect
 
+data "template_file" "userdata-nginx-v1" {
+  template = file("scripts/nginx_onboard.tmpl")
+  vars = {
+     AWS_LB         = chomp(file("app_deployment/AWS_LB"))
+  }
+depends_on = [null_resource.app_deployment]
+}
+
+
 resource "aws_instance" "nginx_WAF" {
   #NGINX Plus with NGINX App Protect Premium - Ubuntu 18.04
-  ami                    = "ami-0e141c47b1e88c8aa"
+  ami                    = "ami-0a7341a9ef73bceb2"
+  # "ami-0e141c47b1e88c8aa" --> Oregon or "ami-0a7341a9ef73bceb2" --> Tokyo
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.public-subnet.id
-  #user_data             = file("./scripts/nginx.sh")
+  user_data              = data.template_file.userdata-nginx-v1.rendered
   vpc_security_group_ids = [aws_security_group.public.id]
   key_name               = aws_key_pair.demo.key_name
   tags = {
