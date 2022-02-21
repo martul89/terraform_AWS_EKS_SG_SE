@@ -30,6 +30,7 @@ cd ../..
 kubectl apply -f arcadia_deploy.yaml
 kubectl apply -f nginx-ingress-install-edited.yaml
 kubectl apply -f nginx-service.yaml
+sleep 30
 kubectl apply -f nginx-VS.yaml
 kubectl get service --namespace=nginx-ingress
 kubectl get svc nginx-ingress --namespace=nginx-ingress | tr -s " " | cut -d' ' -f4 | grep -v "EXTERNAL-IP"
