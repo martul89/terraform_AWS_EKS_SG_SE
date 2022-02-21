@@ -4,13 +4,13 @@
 # Provide the access key to your AWS account
 variable "access_key" {
   description = "access key to AWS account"
-  default     = "AKIAY6B3ZMRVAKWF2PUG"
+  default     = "XXXX"
 }
 
 # Provide the secret key to your AWS account
 variable "secret_key" {
   description = "secret key to AWS account"
-  default     = "d15uWt0obezDnLJzhjy6Mzct/NRfH+7ZxgBsYWrV"
+  default     = "XXXX"
 }
 
 # Select the region required, make sure the AMI is valid for that region.
